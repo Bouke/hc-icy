@@ -36,8 +36,12 @@ func (portal *Portal) Login(username string, password string) error {
 
 	decoder := json.NewDecoder(res.Body)
 	err = decoder.Decode(&portal.Session)
+
 	if err != nil {
 		return err
+	}
+	if portal.Session.Token == "" {
+		return errors.New("Could not login to ICY Portal")
 	}
 	return nil
 }
@@ -76,8 +80,6 @@ func (portal Portal) Write() error {
 	for _, c := range portal.Status.Configuration {
 		data.Add("configuration[]", strconv.Itoa(c))
 	}
-
-	fmt.Println(data.Encode())
 
 	req, err := http.NewRequest("POST", "https://portal.icy.nl/data", strings.NewReader(data.Encode()))
 	if err != nil {
@@ -143,4 +145,8 @@ func (portal *Portal) SetMode(value Mode) {
 	case Fixed:
 		portal.Status.Configuration[0] = 160 // @todo this doesn't work?
 	}
+}
+
+func (portal Portal) IsHeating() bool {
+	return portal.Status.Configuration[0]&4 == 4
 }

@@ -3,36 +3,30 @@ package icy
 import (
 	"log"
 	"time"
-
-	"github.com/brutella/hc/model"
-	"github.com/brutella/hc/model/accessory"
+	"github.com/brutella/hc/accessory"
+	"github.com/brutella/hc/characteristic"
 )
 
-func (portal Portal) HeatCoolMode() model.HeatCoolModeType {
-	switch portal.Mode() {
-	case Fixed:
-		return model.HeatCoolModeOff
-	case Away:
-		return model.HeatCoolModeCool
-	case Saving:
-		return model.HeatCoolModeCool
-	case Comfort:
-		return model.HeatCoolModeHeat
-	default:
-		panic("Unexpected mode")
+func (portal Portal) CurrentHeatingCoolingState() int {
+	if portal.IsHeating() {
+		return characteristic.CurrentHeatingCoolingStateHeat
 	}
+	if portal.Mode() == Comfort {
+		return characteristic.CurrentHeatingCoolingStateCool		
+	}
+	return characteristic.CurrentHeatingCoolingStateOff
 }
 
-func (portal Portal) TargetHeatCoolMode() model.HeatCoolModeType {
+func (portal Portal) TargetHeatingCoolingState() int {
 	switch portal.Mode() {
 	case Fixed:
-		return model.HeatCoolModeOff
+		return characteristic.TargetHeatingCoolingStateOff
 	case Away:
-		return model.HeatCoolModeAuto
+		return characteristic.TargetHeatingCoolingStateOff
 	case Saving:
-		return model.HeatCoolModeAuto
+		return characteristic.TargetHeatingCoolingStateOff
 	case Comfort:
-		return model.HeatCoolModeAuto
+		return characteristic.TargetHeatingCoolingStateAuto
 	default:
 		panic("Unexpected mode")
 	}
@@ -50,37 +44,30 @@ func NewThermostat(username string, password string) (*accessory.Thermostat, err
 		return nil, err
 	}
 
-	thermostat := accessory.NewThermostat(model.Info{
+	thermostat := accessory.NewThermostat(accessory.Info{
 		Name:         "e-thermostaat",
 		Manufacturer: "ICY",
 	}, portal.TargetTemperature(), 0, 30, 0.5)
-	thermostat.SetTemperature(portal.Temperature())
-	thermostat.SetMode(portal.HeatCoolMode())
-	thermostat.SetTargetMode(portal.TargetHeatCoolMode())
 
-	thermostat.OnTargetTempChange(func(value float64) {
+	thermostat.Thermostat.CurrentTemperature.SetValue(portal.Temperature())
+	thermostat.Thermostat.TargetTemperature.SetValue(portal.TargetTemperature())
+	thermostat.Thermostat.CurrentHeatingCoolingState.SetValue(portal.CurrentHeatingCoolingState())
+	thermostat.Thermostat.TargetHeatingCoolingState.SetValue(portal.TargetHeatingCoolingState())
+
+	thermostat.Thermostat.TargetTemperature.OnValueRemoteUpdate(func(value float64) {
 		portal.SetTargetTemperature(value)
 		portal.Write()
 	})
-	thermostat.OnTargetModeChange(func(value model.HeatCoolModeType) {
+	thermostat.Thermostat.TargetHeatingCoolingState.OnValueRemoteUpdate(func(value int) {
 		switch value {
-		case model.HeatCoolModeOff:
+		case characteristic.TargetHeatingCoolingStateOff:
 			portal.SetMode(Fixed)
-			temperature := float64(portal.Status.Configuration[5]) / 2
-			portal.SetTargetTemperature(temperature)
-			thermostat.SetTargetTemperature(temperature)
-		case model.HeatCoolModeCool:
+		case characteristic.TargetHeatingCoolingStateCool:
 			portal.SetMode(Saving)
-			temperature := float64(portal.Status.Configuration[5]) / 2
-			portal.SetTargetTemperature(temperature)
-			thermostat.SetTargetTemperature(temperature)
-		case model.HeatCoolModeHeat:
+		case characteristic.TargetHeatingCoolingStateHeat:
 			fallthrough
-		case model.HeatCoolModeAuto:
+		case characteristic.TargetHeatingCoolingStateAuto:
 			portal.SetMode(Comfort)
-			temperature := float64(portal.Status.Configuration[6]) / 2
-			portal.SetTargetTemperature(temperature)
-			thermostat.SetTargetTemperature(temperature)
 		}
 		err := portal.Write()
 		if err != nil {
@@ -97,11 +84,11 @@ func NewThermostat(username string, password string) (*accessory.Thermostat, err
 				log.Fatal(err)
 				return
 			}
-			thermostat.SetTemperature(portal.Temperature())
-			thermostat.SetTargetTemperature(portal.TargetTemperature())
+			thermostat.Thermostat.CurrentTemperature.SetValue(portal.Temperature())
+			thermostat.Thermostat.TargetTemperature.SetValue(portal.TargetTemperature())
 
-			thermostat.SetMode(portal.HeatCoolMode())
-			thermostat.SetTargetMode(portal.TargetHeatCoolMode())
+			thermostat.Thermostat.CurrentHeatingCoolingState.SetValue(portal.CurrentHeatingCoolingState())
+			thermostat.Thermostat.TargetHeatingCoolingState.SetValue(portal.TargetHeatingCoolingState())
 		}
 	}()
 
