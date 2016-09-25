@@ -16,7 +16,8 @@ type Portal struct {
 }
 
 type Session struct {
-	Serial string `json:"serialthermostat1"`
+	SerialNumberHub string `json:"serialhub"`
+	SerialNumber string `json:"serialthermostat1"`
 	Token  string `json:"token"`
 }
 
@@ -74,7 +75,7 @@ func (portal Portal) Write() error {
 	client := &http.Client{}
 
 	data := url.Values{
-		"uid":          {portal.Session.Serial},
+		"uid":          {portal.Session.SerialNumber},
 		"temperature1": {fmt.Sprintf("%.1f", portal.Status.Target)},
 	}
 	for _, c := range portal.Status.Configuration {

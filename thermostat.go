@@ -47,6 +47,7 @@ func NewThermostat(username string, password string) (*accessory.Thermostat, err
 	thermostat := accessory.NewThermostat(accessory.Info{
 		Name:         "e-thermostaat",
 		Manufacturer: "ICY",
+		SerialNumber: portal.Session.SerialNumber,
 	}, portal.TargetTemperature(), 0, 30, 0.5)
 
 	thermostat.Thermostat.CurrentTemperature.SetValue(portal.Temperature())
