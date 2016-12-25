@@ -3,6 +3,7 @@ package icy
 import (
 	"log"
 	"time"
+
 	"github.com/brutella/hc/accessory"
 	"github.com/brutella/hc/characteristic"
 )
@@ -12,7 +13,7 @@ func (portal Portal) CurrentHeatingCoolingState() int {
 		return characteristic.CurrentHeatingCoolingStateHeat
 	}
 	if portal.Mode() == Comfort {
-		return characteristic.CurrentHeatingCoolingStateCool		
+		return characteristic.CurrentHeatingCoolingStateCool
 	}
 	return characteristic.CurrentHeatingCoolingStateOff
 }
@@ -22,9 +23,9 @@ func (portal Portal) TargetHeatingCoolingState() int {
 	case Fixed:
 		return characteristic.TargetHeatingCoolingStateOff
 	case Away:
-		return characteristic.TargetHeatingCoolingStateOff
+		fallthrough
 	case Saving:
-		return characteristic.TargetHeatingCoolingStateOff
+		fallthrough
 	case Comfort:
 		return characteristic.TargetHeatingCoolingStateAuto
 	default:
@@ -32,7 +33,7 @@ func (portal Portal) TargetHeatingCoolingState() int {
 	}
 }
 
-func NewThermostat(username string, password string) (*accessory.Thermostat, error) {
+func NewThermostat(name string, username string, password string) (*accessory.Thermostat, error) {
 	portal := Portal{}
 	err := portal.Login(username, password)
 	if err != nil {
@@ -45,7 +46,7 @@ func NewThermostat(username string, password string) (*accessory.Thermostat, err
 	}
 
 	thermostat := accessory.NewThermostat(accessory.Info{
-		Name:         "e-thermostaat",
+		Name:         name,
 		Manufacturer: "ICY",
 		SerialNumber: portal.Session.SerialNumber,
 	}, portal.TargetTemperature(), 0, 30, 0.5)
@@ -60,16 +61,22 @@ func NewThermostat(username string, password string) (*accessory.Thermostat, err
 		portal.Write()
 	})
 	thermostat.Thermostat.TargetHeatingCoolingState.OnValueRemoteUpdate(func(value int) {
+		var newTemperature float64
 		switch value {
 		case characteristic.TargetHeatingCoolingStateOff:
+			newTemperature = float64(portal.Configuration[4]) / 2
 			portal.SetMode(Fixed)
 		case characteristic.TargetHeatingCoolingStateCool:
+			newTemperature = float64(portal.Configuration[5]) / 2
 			portal.SetMode(Saving)
 		case characteristic.TargetHeatingCoolingStateHeat:
 			fallthrough
 		case characteristic.TargetHeatingCoolingStateAuto:
+			newTemperature = float64(portal.Configuration[6]) / 2
 			portal.SetMode(Comfort)
 		}
+		portal.SetTargetTemperature(newTemperature)
+		thermostat.Thermostat.TargetTemperature.SetValue(portal.TargetTemperature())
 		err := portal.Write()
 		if err != nil {
 			log.Fatal(err)
