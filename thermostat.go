@@ -33,6 +33,10 @@ func (portal Portal) TargetHeatingCoolingState() int {
 	}
 }
 
+func (portal Portal) ConfiguredTemperatureForModeFixed() float64 {
+	return float64(portal.Configuration[4]) / 2
+}
+
 func NewThermostat(name string, username string, password string) (*accessory.Thermostat, error) {
 	portal := Portal{}
 	err := portal.Login(username, password)
@@ -57,14 +61,17 @@ func NewThermostat(name string, username string, password string) (*accessory.Th
 	thermostat.Thermostat.TargetHeatingCoolingState.SetValue(portal.TargetHeatingCoolingState())
 
 	thermostat.Thermostat.TargetTemperature.OnValueRemoteUpdate(func(value float64) {
-		portal.SetTargetTemperature(value)
-		portal.Write()
+		if portal.Mode() != Fixed {
+			portal.SetTargetTemperature(value)
+			portal.SetMode(Comfort)
+			portal.Write()
+		}
 	})
 	thermostat.Thermostat.TargetHeatingCoolingState.OnValueRemoteUpdate(func(value int) {
 		var newTemperature float64
 		switch value {
 		case characteristic.TargetHeatingCoolingStateOff:
-			newTemperature = float64(portal.Configuration[4]) / 2
+			newTemperature = portal.ConfiguredTemperatureForModeFixed()
 			portal.SetMode(Fixed)
 		case characteristic.TargetHeatingCoolingStateCool:
 			newTemperature = float64(portal.Configuration[5]) / 2
@@ -93,7 +100,9 @@ func NewThermostat(name string, username string, password string) (*accessory.Th
 				return
 			}
 			thermostat.Thermostat.CurrentTemperature.SetValue(portal.Temperature())
-			thermostat.Thermostat.TargetTemperature.SetValue(portal.TargetTemperature())
+			if !(portal.Mode() == Fixed && portal.TargetTemperature() == portal.ConfiguredTemperatureForModeFixed()) {
+				thermostat.Thermostat.TargetTemperature.SetValue(portal.TargetTemperature())
+			}
 
 			thermostat.Thermostat.CurrentHeatingCoolingState.SetValue(portal.CurrentHeatingCoolingState())
 			thermostat.Thermostat.TargetHeatingCoolingState.SetValue(portal.TargetHeatingCoolingState())
